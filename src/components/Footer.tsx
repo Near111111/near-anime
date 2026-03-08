@@ -129,11 +129,7 @@ export default function Footer() {
             </p>
           </div>
           <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 flex-shrink-0 flex-wrap">
-            © 2026{" "}
-            <span style={{ color: "var(--accent)" }} className="font-bold">
-              NearAnime
-            </span>{" "}
-            All rights reserved.{" "}
+            © NEARANIME All rights reserved.{" "}
           </p>
         </div>
       </div>
