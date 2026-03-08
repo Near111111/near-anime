@@ -92,7 +92,7 @@ export default function DevBanner() {
                   </svg>
                 ),
                 href: "https://www.tiktok.com/@im.nearr",
-                name: "@im.nearr",
+                name: "<Neyr/>>",
               },
             ].map((social) => (
               <a
