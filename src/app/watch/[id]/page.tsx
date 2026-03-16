@@ -4,7 +4,13 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { getStream, getAnimeInfo, getEpisodes, getHome } from "@/lib/api";
+import {
+  getStream,
+  getAnimeInfo,
+  getEpisodes,
+  getHome,
+  getServers,
+} from "@/lib/api";
 import {
   AlertCircle,
   Captions,
@@ -100,6 +106,16 @@ export default function WatchPage() {
     ? episodes.find((e) => e.episode_no === currentEpisode.episode_no + 1)
     : null;
 
+  // Fetch servers independently so buttons always show even if stream fails
+  useEffect(() => {
+    if (!ep) return;
+    getServers(ep)
+      .then((res) => {
+        if (res && res.length > 0) setServers(res);
+      })
+      .catch(() => {});
+  }, [ep]);
+
   const fetchStream = useCallback(
     async (server: string, type: string) => {
       setLoading(true);
@@ -110,7 +126,9 @@ export default function WatchPage() {
         const streamUrl = typeof rawLink === "string" ? rawLink : rawLink?.file;
         if (streamUrl) {
           setStream({ ...result.streamingLink, link: streamUrl });
-          setServers(result.servers || []);
+          if (result.servers && result.servers.length > 0) {
+            setServers(result.servers);
+          }
         } else {
           setError("No stream available. Try another server.");
         }
