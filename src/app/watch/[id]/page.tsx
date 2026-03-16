@@ -77,7 +77,7 @@ export default function WatchPage() {
 
   const [stream, setStream] = useState<StreamData | null>(null);
   const [servers, setServers] = useState<ServerItem[]>([]);
-  const [activeServer, setActiveServer] = useState("hd-1");
+  const [activeServer, setActiveServer] = useState("megacloud");
   const [activeType, setActiveType] = useState("sub");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

@@ -29,7 +29,7 @@ export async function getServers(episodeId: string) {
 
 export async function getStream(
   id: string,
-  server: string = "hd-1",
+  server: string = "megacloud",
   type: string = "sub",
 ) {
   try {
