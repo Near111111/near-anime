@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { Play } from "lucide-react";
 import type { Anime } from "@/types/anime";
 
@@ -17,10 +16,9 @@ export default function AnimeCard({
   return (
     <Link href={`/anime/${anime.id}`} className="anime-card block group">
       {isTrending ? (
-        /* ── Trending layout: vertical title outside left + poster ── */
         <div>
           <div className="flex" style={{ height: "220px" }}>
-            {/* Vertical title strip with rank at top */}
+            {/* Vertical title strip */}
             <div
               className="flex-shrink-0 flex items-center justify-center relative overflow-hidden"
               style={{ width: "34px", height: "220px" }}
@@ -65,14 +63,12 @@ export default function AnimeCard({
               className="relative flex-1 rounded-md overflow-hidden bg-[var(--bg-card)]"
               style={{ height: "220px" }}
             >
-              <Image
+              <img
                 src={anime.poster}
                 alt={anime.title}
-                fill
-                sizes="(max-width: 640px) 50vw, 20vw"
-                className="object-cover card-image transition-all duration-300"
+                referrerPolicy="no-referrer"
+                className="object-cover card-image transition-all duration-300 absolute inset-0 w-full h-full"
               />
-              {/* Hover overlay */}
               <div
                 className="card-overlay absolute inset-0 opacity-0 transition-opacity duration-200 flex items-center justify-center"
                 style={{
@@ -94,17 +90,14 @@ export default function AnimeCard({
           </div>
         </div>
       ) : (
-        /* ── Normal layout: poster + title below ── */
         <div>
           <div className="relative aspect-[2/3] rounded-md overflow-hidden bg-[var(--bg-card)]">
-            <Image
+            <img
               src={anime.poster}
               alt={anime.title}
-              fill
-              sizes="(max-width: 640px) 50vw, 20vw"
-              className="object-cover card-image transition-all duration-300"
+              referrerPolicy="no-referrer"
+              className="object-cover card-image transition-all duration-300 absolute inset-0 w-full h-full"
             />
-            {/* Hover overlay */}
             <div
               className="card-overlay absolute inset-0 opacity-0 transition-opacity duration-200 flex items-center justify-center"
               style={{
@@ -133,7 +126,7 @@ export default function AnimeCard({
               </div>
             )}
 
-            {/* Sub/Dub badge */}
+            {/* Sub/Dub badges */}
             <div className="absolute bottom-1.5 right-1.5 flex flex-col gap-1">
               {anime.tvInfo?.sub && (
                 <div className="badge-sub flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold">
