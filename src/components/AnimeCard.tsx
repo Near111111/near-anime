@@ -133,7 +133,7 @@ export default function AnimeCard({
               </div>
             )}
 
-            {/* Sub/Dub badges */}
+            {/* Sub/Dub badge */}
             <div className="absolute bottom-1.5 right-1.5 flex flex-col gap-1">
               {anime.tvInfo?.sub && (
                 <div className="badge-sub flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold">
