@@ -38,7 +38,7 @@ interface ServerItem {
   serverName: string;
 }
 interface Episode {
-  id: string; // e.g. "bleach-806?ep=13793"
+  id: string;
   episode_no: number;
   title: string | null;
   isFiller?: boolean;
@@ -60,6 +60,11 @@ interface AnimeDetail {
   }[];
 }
 
+interface QualityLevel {
+  height: number;
+  index: number;
+}
+
 const EPISODES_PER_PAGE = 50;
 const GITHUB_USERNAME = "Near111111";
 
@@ -68,11 +73,10 @@ export default function WatchPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const routeId = params.id as string;
-  const ep = searchParams.get("ep"); // this is the episode data_id e.g. "13793"
+  const ep = searchParams.get("ep");
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
-  // fullEpisodeId = "bleach-806?ep=13793" — what the stream API expects
   const fullEpisodeId = ep ? `${routeId}?ep=${ep}` : routeId;
 
   const [stream, setStream] = useState<StreamData | null>(null);
@@ -92,21 +96,21 @@ export default function WatchPage() {
   const [recoLoaded, setRecoLoaded] = useState(false);
   const [followed, setFollowed] = useState(false);
 
-  // animeId = the slug without query string e.g. "bleach-806"
+  // Quality selector states
+  const [qualities, setQualities] = useState<QualityLevel[]>([]);
+  const [activeQuality, setActiveQuality] = useState<number>(-1);
+
   const animeId = routeId.replace(/\?.*$/, "");
 
-  // currentEpisode = find by matching ep data_id in episode.id
   const currentEpisode = episodes.find((e) =>
     ep ? e.id.includes(`ep=${ep}`) : false,
   );
   const currentEpNo = currentEpisode?.episode_no;
 
-  // Next episode
   const nextEpisode = currentEpisode
     ? episodes.find((e) => e.episode_no === currentEpisode.episode_no + 1)
     : null;
 
-  // Fetch servers independently so buttons always show even if stream fails
   useEffect(() => {
     if (!ep) return;
     getServers(ep)
@@ -120,6 +124,8 @@ export default function WatchPage() {
     async (server: string, type: string) => {
       setLoading(true);
       setError("");
+      setQualities([]);
+      setActiveQuality(-1);
       try {
         const result = await getStream(fullEpisodeId, server, type);
         const rawLink = result?.streamingLink?.link;
@@ -140,13 +146,11 @@ export default function WatchPage() {
     [fullEpisodeId],
   );
 
-  // Fetch stream on episode change
   useEffect(() => {
     if (fullEpisodeId) fetchStream(activeServer, activeType);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullEpisodeId]);
 
-  // Fetch anime info + episodes
   useEffect(() => {
     if (!animeId) return;
     getAnimeInfo(animeId)
@@ -161,7 +165,6 @@ export default function WatchPage() {
       .catch(() => {});
   }, [animeId]);
 
-  // Auto-scroll episode list to current episode
   useEffect(() => {
     if (!currentEpisode || episodes.length === 0) return;
     const pageIndex = Math.floor(
@@ -170,7 +173,6 @@ export default function WatchPage() {
     setEpRange(pageIndex);
   }, [currentEpisode, episodes.length]);
 
-  // Fetch recommendations lazily (after main content loads)
   useEffect(() => {
     if (recoLoaded) return;
     const timer = setTimeout(() => {
@@ -185,7 +187,7 @@ export default function WatchPage() {
         .catch(() => {
           setRecoLoaded(true);
         });
-    }, 800); // slight delay so player loads first
+    }, 800);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -195,7 +197,6 @@ export default function WatchPage() {
     if (!stream?.link || !videoRef.current) return;
     const video = videoRef.current;
 
-    // Destroy previous instance
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
@@ -206,11 +207,25 @@ export default function WatchPage() {
       hlsRef.current = hls;
       hls.loadSource(`/api/proxy?url=${encodeURIComponent(stream.link)}`);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
         video.play().catch(() => {});
+
+        // Get quality levels
+        const levels = data.levels.map(
+          (level: { height: number }, index: number) => ({
+            height: level.height,
+            index,
+          }),
+        );
+        // Remove duplicates by height
+        const unique = levels.filter(
+          (l: QualityLevel, i: number, arr: QualityLevel[]) =>
+            arr.findIndex((x) => x.height === l.height) === i,
+        );
+        setQualities(unique);
+        setActiveQuality(-1);
       });
 
-      // Auto-next: when video ends, navigate to next episode
       const handleEnded = () => {
         if (nextEpisode) {
           router.push(`/watch/${nextEpisode.id}`);
@@ -218,8 +233,6 @@ export default function WatchPage() {
       };
       video.addEventListener("ended", handleEnded);
 
-      // Add subtitle tracks
-      // Remove old tracks first
       Array.from(video.querySelectorAll("track")).forEach((t) => t.remove());
       if (stream.tracks) {
         stream.tracks.forEach((track) => {
@@ -251,6 +264,25 @@ export default function WatchPage() {
     fetchStream(server, type);
   };
 
+  const handleQualityChange = (index: number) => {
+    setActiveQuality(index);
+    if (hlsRef.current && videoRef.current) {
+      const video = videoRef.current;
+      const currentTime = video.currentTime;
+      const wasPaused = video.paused;
+
+      hlsRef.current.currentLevel = index;
+
+      // Resume playback after level change
+      hlsRef.current.once(Hls.Events.LEVEL_SWITCHED, () => {
+        video.currentTime = currentTime;
+        if (!wasPaused) {
+          video.play().catch(() => {});
+        }
+      });
+    }
+  };
+
   const subServers = servers.filter((s) => s.type === "sub");
   const dubServers = servers.filter((s) => s.type === "dub");
   const rawServers = servers.filter((s) => s.type === "raw");
@@ -263,7 +295,6 @@ export default function WatchPage() {
         (epRange + 1) * EPISODES_PER_PAGE,
       );
 
-  // Episode title: prefer title, fallback to "Episode N"
   const episodeTitle = currentEpisode?.title
     ? currentEpisode.title
     : currentEpNo
@@ -396,7 +427,6 @@ export default function WatchPage() {
             <div className="overflow-y-auto p-2" style={{ flex: 1 }}>
               <div className="grid grid-cols-5 gap-1">
                 {filteredEpisodes.map((epItem) => {
-                  // Match by ep data_id embedded in episode.id
                   const isCurrent = ep ? epItem.id.includes(`ep=${ep}`) : false;
                   const isFiller = epItem.isFiller || epItem.filler;
                   return (
@@ -678,9 +708,74 @@ export default function WatchPage() {
               />
             </div>
 
-            {/* Next episode button */}
-            {nextEpisode && (
-              <div className="mt-3 flex justify-end">
+            {/* Quality Selector + Next Episode row */}
+            <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
+              {/* Quality Selector */}
+              {qualities.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className="text-xs font-bold uppercase tracking-widest"
+                    style={{
+                      color: "var(--text-secondary)",
+                      fontFamily: "'Rajdhani', sans-serif",
+                    }}
+                  >
+                    Quality:
+                  </span>
+                  <button
+                    onClick={() => handleQualityChange(-1)}
+                    className="px-3 py-1 rounded text-xs font-bold transition-all"
+                    style={{
+                      fontFamily: "'Rajdhani', sans-serif",
+                      background:
+                        activeQuality === -1
+                          ? "var(--accent)"
+                          : "var(--bg-card)",
+                      border:
+                        "1px solid " +
+                        (activeQuality === -1
+                          ? "var(--accent)"
+                          : "var(--border)"),
+                      color:
+                        activeQuality === -1
+                          ? "white"
+                          : "var(--text-secondary)",
+                    }}
+                  >
+                    Auto
+                  </button>
+                  {qualities
+                    .sort((a, b) => b.height - a.height)
+                    .map((q) => (
+                      <button
+                        key={q.index}
+                        onClick={() => handleQualityChange(q.index)}
+                        className="px-3 py-1 rounded text-xs font-bold transition-all"
+                        style={{
+                          fontFamily: "'Rajdhani', sans-serif",
+                          background:
+                            activeQuality === q.index
+                              ? "var(--accent)"
+                              : "var(--bg-card)",
+                          border:
+                            "1px solid " +
+                            (activeQuality === q.index
+                              ? "var(--accent)"
+                              : "var(--border)"),
+                          color:
+                            activeQuality === q.index
+                              ? "white"
+                              : "var(--text-secondary)",
+                        }}
+                      >
+                        {q.height}p
+                      </button>
+                    ))}
+                </div>
+              )}
+
+              {/* Next episode button */}
+              {nextEpisode && (
                 <Link
                   href={`/watch/${nextEpisode.id}`}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all hover:scale-[1.02]"
@@ -700,8 +795,9 @@ export default function WatchPage() {
                     style={{ color: "var(--accent)", flexShrink: 0 }}
                   />
                 </Link>
-              </div>
-            )}
+              )}
+            </div>
+
             {/* Episode Info Panel */}
             {animeInfo && (
               <div
