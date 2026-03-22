@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { Play } from "lucide-react";
 import type { Anime } from "@/types/anime";
 
@@ -65,12 +64,11 @@ export default function AnimeCard({
               className="relative flex-1 rounded-md overflow-hidden bg-[var(--bg-card)]"
               style={{ height: "220px" }}
             >
-              <Image
+              <img
                 src={anime.poster}
                 alt={anime.title}
-                fill
-                sizes="(max-width: 640px) 50vw, 20vw"
-                className="object-cover card-image transition-all duration-300"
+                referrerPolicy="no-referrer"
+                className="object-cover card-image transition-all duration-300 absolute inset-0 w-full h-full"
               />
               {/* Hover overlay */}
               <div
@@ -97,12 +95,11 @@ export default function AnimeCard({
         /* ── Normal layout: poster + title below ── */
         <div>
           <div className="relative aspect-[2/3] rounded-md overflow-hidden bg-[var(--bg-card)]">
-            <Image
+            <img
               src={anime.poster}
               alt={anime.title}
-              fill
-              sizes="(max-width: 640px) 50vw, 20vw"
-              className="object-cover card-image transition-all duration-300"
+              referrerPolicy="no-referrer"
+              className="object-cover card-image transition-all duration-300 absolute inset-0 w-full h-full"
             />
             {/* Hover overlay */}
             <div
