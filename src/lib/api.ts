@@ -18,47 +18,56 @@ export async function getAnimeInfo(id: string) {
 }
 
 export async function getEpisodes(id: string) {
+  try {
+    const { data } = await api.get(
+      `/episodes/gogo?slug=${encodeURIComponent(id)}`,
+    );
+    if (data.results?.totalEpisodes > 0) return data.results;
+  } catch (_) {}
   const { data } = await api.get(`/episodes/${id}`);
   return data.results;
 }
 
-export async function getServers(episodeId: string) {
-  const { data } = await api.get(`/servers/${episodeId}`);
-  return data.results;
+export async function getServers(episodeUrl: string) {
+  try {
+    const { data } = await api.get(
+      `/servers/gogo?url=${encodeURIComponent(episodeUrl)}`,
+    );
+    return data.results;
+  } catch (_) {
+    const { data } = await api.get(`/servers/${episodeUrl}`);
+    return data.results;
+  }
 }
 
 export async function getStream(
   id: string,
-  server: string = "megacloud",
+  server: string = "fast",
   type: string = "sub",
 ) {
-  try {
-    // Try normal stream first
-    const { data } = await api.get(
-      `/stream?id=${encodeURIComponent(id)}&server=${server}&type=${type}`,
-    );
+  // Construct full gogoanime URL if only slug is passed
+  const episodeUrl = id.startsWith("http")
+    ? id
+    : `https://gogoanime.by/${id.replace(/^\//, "").replace(/\/$/, "")}/`;
 
-    const file =
-      data?.results?.streamingLink?.link?.file ??
-      data?.results?.streamingLink?.link;
+  const serversToTry =
+    server === "fast"
+      ? ["fast", "hd", "megacloud", "vidsrc"]
+      : [server, "fast", "hd", "megacloud", "vidsrc"];
 
-    // If no stream link, try fallback
-    if (!file) {
-      const { data: fallbackData } = await api.get(
-        `/stream/fallback?id=${encodeURIComponent(id)}&server=${server}&type=${type}`,
+  for (const s of serversToTry) {
+    try {
+      const { data } = await api.get(
+        `/stream/gogo?url=${encodeURIComponent(episodeUrl)}&server=${s}&type=${type}`,
       );
-      return fallbackData.results;
-    }
-
-    return data.results;
-  } catch {
-    // If normal fails, use fallback
-    const { data: fallbackData } = await api.get(
-      `/stream/fallback?id=${encodeURIComponent(id)}&server=${server}&type=${type}`,
-    );
-    return fallbackData.results;
+      const file = data?.results?.link?.file;
+      if (file) return data.results;
+    } catch (_) {}
   }
+
+  return null;
 }
+
 export async function searchAnime(keyword: string, page: number = 1) {
   const { data } = await api.get(
     `/search?keyword=${encodeURIComponent(keyword)}&page=${page}`,
