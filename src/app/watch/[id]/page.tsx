@@ -205,7 +205,15 @@ export default function WatchPage() {
     if (Hls.isSupported()) {
       const hls = new Hls({ maxBufferLength: 30, maxMaxBufferLength: 60 });
       hlsRef.current = hls;
-      hls.loadSource(`/api/proxy?url=${encodeURIComponent(stream.link)}`);
+
+      // watching.onl at iba pang video hosts ay nag-eexpect ng megacloud.blog as referer
+      const streamReferer = "https://megacloud.blog/";
+
+      const backendBase =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:4444/api";
+      hls.loadSource(
+        `${backendBase}/proxy?url=${encodeURIComponent(stream.link)}&referer=${encodeURIComponent("https://megacloud.blog/")}`,
+      );
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
         video.play().catch(() => {});
