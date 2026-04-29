@@ -8,6 +8,14 @@ const flask = axios.create({
   timeout: 20000,
 });
 
+// AnimeKAI backend returns numeric keys for server types
+// "1" = sub, "2" = dub, "3" = raw
+const SERVER_TYPE_MAP: Record<string, string> = {
+  "1": "sub",
+  "2": "dub",
+  "3": "raw",
+};
+
 // ─── Type helpers ─────────────────────────────────────────────────────────────
 
 interface KaiAnime {
@@ -229,7 +237,8 @@ export async function getServers(episodeParam: string) {
     server_id: string;
   }[] = [];
 
-  for (const [type, list] of Object.entries(servers)) {
+  for (const [key, list] of Object.entries(servers)) {
+    const type = SERVER_TYPE_MAP[key] || key;
     for (const s of list as {
       name: string;
       link_id: string;
@@ -271,10 +280,40 @@ export async function getStream(
 
   const { data: serverData } = await flask.get(`/api/servers/${token}`);
   const servers = serverData.servers || {};
+
+  // Map numeric keys to type names: "1"=sub, "2"=dub, "3"=raw
+  const mappedServers: Record<string, { link_id: string; name: string }[]> = {};
+  for (const [key, list] of Object.entries(servers)) {
+    const typeName = SERVER_TYPE_MAP[key] || key;
+    mappedServers[typeName] = list as { link_id: string; name: string }[];
+  }
+
   const typeServers: { link_id: string; name: string }[] =
-    servers[type] || servers["sub"] || [];
+    mappedServers[type] || mappedServers["sub"] || [];
 
   if (!typeServers.length) return null;
+
+  // Build full server list for the sidebar
+  const allServers: {
+    type: string;
+    serverName: string;
+    data_id: string;
+    server_id: string;
+  }[] = [];
+  for (const [t, list] of Object.entries(mappedServers)) {
+    for (const s of list as {
+      link_id: string;
+      name: string;
+      server_id?: string;
+    }[]) {
+      allServers.push({
+        type: t,
+        serverName: s.name,
+        data_id: s.link_id,
+        server_id: s.server_id || "",
+      });
+    }
+  }
 
   for (const server of typeServers) {
     try {
@@ -289,7 +328,7 @@ export async function getStream(
             intro: data.skip?.intro || null,
             outro: data.skip?.outro || null,
           },
-          servers: [],
+          servers: allServers,
         };
       }
     } catch (_) {

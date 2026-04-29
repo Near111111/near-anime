@@ -111,14 +111,17 @@ export default function WatchPage() {
     ? episodes.find((e) => e.episode_no === currentEpisode.episode_no + 1)
     : null;
 
+  // Fetch servers once we have the episodes list (to get the token)
   useEffect(() => {
-    if (!ep) return;
-    getServers(ep)
+    if (!ep || episodes.length === 0) return;
+    const found = episodes.find((e) => e.id.includes(`ep=${ep}`));
+    if (!found) return;
+    getServers(found.id)
       .then((res) => {
         if (res && res.length > 0) setServers(res);
       })
       .catch(() => {});
-  }, [ep]);
+  }, [ep, episodes]);
 
   const fetchStream = useCallback(
     async (server: string, type: string) => {

@@ -20,7 +20,6 @@ export default function HomePage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // Main data — required for the page
     getHome()
       .then((homeRes) => {
         setData(homeRes);
@@ -33,7 +32,6 @@ export default function HomePage() {
         setLoading(false);
       });
 
-    // Top 10 — background fetch, won't block page
     getTopTen()
       .then((res) => {
         if (res) setTop10Data(res);
@@ -95,50 +93,26 @@ export default function HomePage() {
         {/* Dev Banner Section */}
         <DevBanner />
 
-        {/* 4-column grid section */}
+        {/* 3-column grid section + Top 10 sidebar side by side */}
         <AnimeGridSection
           topAiring={data.topAiring}
           trending={data.mostPopular}
           favorite={data.mostFavorite}
           completed={data.latestCompleted}
+          top10={top10Data || data.top10}
         />
 
-        {/* Latest Episodes grid + Top 10 sidebar */}
+        {/* Latest Episodes grid + Top Upcoming */}
         <section className="px-4 sm:px-6 md:px-10 py-6">
-          <div className="flex gap-6 lg:gap-8">
-            {/* Left: grids */}
-            <div className="flex-1 min-w-0 space-y-8">
-              {data.latestEpisode && (
-                <AnimeGrid
-                  title="Latest Episodes Animes"
-                  anime={data.latestEpisode}
-                />
-              )}
-              {data.topUpcoming && (
-                <AnimeGrid
-                  title="Top Upcoming Animes"
-                  anime={data.topUpcoming}
-                />
-              )}
-
-              {/* Mobile: Top 10 shown inline */}
-              {(top10Data || data.top10) && (
-                <div className="lg:hidden">
-                  <Top10Section top10={top10Data || data.top10!} />
-                </div>
-              )}
-            </div>
-
-            {/* Right: Top 10 sidebar — desktop only */}
-            {(top10Data || data.top10) && (
-              <div
-                className="hidden lg:block flex-shrink-0"
-                style={{ width: "320px" }}
-              >
-                <div className="sticky top-[72px]">
-                  <Top10Section top10={top10Data || data.top10!} />
-                </div>
-              </div>
+          <div className="space-y-8">
+            {data.latestEpisode && (
+              <AnimeGrid
+                title="Latest Episodes Animes"
+                anime={data.latestEpisode}
+              />
+            )}
+            {data.topUpcoming && (
+              <AnimeGrid title="Top Upcoming Animes" anime={data.topUpcoming} />
             )}
           </div>
         </section>
