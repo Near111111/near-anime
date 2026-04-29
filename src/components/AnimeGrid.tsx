@@ -85,8 +85,8 @@ export default function AnimeGrid({
 
       {/* 6-col grid */}
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-        {anime.slice(0, 12).map((item) => (
-          <GridCard key={item.id} anime={item} />
+        {anime.slice(0, 12).map((item, index) => (
+          <GridCard key={`${item.id}-${index}`} anime={item} />
         ))}
       </div>
     </div>

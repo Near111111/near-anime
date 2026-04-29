@@ -1,6 +1,18 @@
 // /api/proxy/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
+// MegaUp CDN domains — these need megaup.nl as referer
+const MEGAUP_CDN_PATTERNS = [
+  "net22lab.site",
+  "uwucdn.top",
+  "code29wave.site",
+  "hub26link.site",
+];
+
+function isMegaUpCdn(url: string): boolean {
+  return MEGAUP_CDN_PATTERNS.some((p) => url.includes(p));
+}
+
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
   const referer = req.nextUrl.searchParams.get("referer");
@@ -14,7 +26,11 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Invalid url", { status: 400 });
   }
 
-  const resolvedReferer = referer || videoHost + "/";
+  // MegaUp CDN segments need megaup.nl as referer
+  const resolvedReferer = isMegaUpCdn(url)
+    ? "https://megaup.nl/"
+    : referer || videoHost + "/";
+
   const resolvedOrigin = (() => {
     try {
       return new URL(resolvedReferer).origin;

@@ -128,9 +128,8 @@ export default function WatchPage() {
       setActiveQuality(-1);
       try {
         const result = await getStream(fullEpisodeId, server, type);
-        const rawLink = result?.streamingLink?.link;
-        const streamUrl = typeof rawLink === "string" ? rawLink : rawLink?.file;
-        if (streamUrl) {
+        const streamUrl = result?.streamingLink?.link;
+        if (result && streamUrl) {
           setStream({ ...result.streamingLink, link: streamUrl });
           if (result.servers && result.servers.length > 0) {
             setServers(result.servers);
@@ -206,13 +205,10 @@ export default function WatchPage() {
       const hls = new Hls({ maxBufferLength: 30, maxMaxBufferLength: 60 });
       hlsRef.current = hls;
 
-      // watching.onl at iba pang video hosts ay nag-eexpect ng megacloud.blog as referer
-      const streamReferer = "https://gogoanime.by/";
-
-      const backendBase =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:4444/api";
+      // Use Next.js built-in proxy with correct referer from stream origin
+      const streamReferer = new URL(stream.link).origin + "/";
       hls.loadSource(
-        `${backendBase}/proxy?url=${encodeURIComponent(stream.link)}&referer=${encodeURIComponent("https://gogoanime.by/")}`,
+        `/api/proxy?url=${encodeURIComponent(stream.link)}&referer=${encodeURIComponent(streamReferer)}`,
       );
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
