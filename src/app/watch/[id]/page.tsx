@@ -77,7 +77,8 @@ export default function WatchPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
-  const fullEpisodeId = ep ? `${routeId}?ep=${ep}` : routeId;
+  // fullEpisodeId is the whole routeId (animeSession___episodeSession)
+  const fullEpisodeId = routeId;
 
   const [stream, setStream] = useState<StreamData | null>(null);
   const [servers, setServers] = useState<ServerItem[]>([]);
@@ -100,10 +101,13 @@ export default function WatchPage() {
   const [qualities, setQualities] = useState<QualityLevel[]>([]);
   const [activeQuality, setActiveQuality] = useState<number>(-1);
 
-  const animeId = routeId.replace(/\?.*$/, "");
+  // routeId is "animeSession___episodeSession" format
+  const animeId = routeId.includes("___")
+    ? routeId.split("___")[0]
+    : routeId.replace(/\?.*$/, "");
 
   const currentEpisode = episodes.find((e) =>
-    ep ? e.id.includes(`ep=${ep}`) : false,
+    routeId ? e.id === routeId : false,
   );
   const currentEpNo = currentEpisode?.episode_no;
 
@@ -111,17 +115,15 @@ export default function WatchPage() {
     ? episodes.find((e) => e.episode_no === currentEpisode.episode_no + 1)
     : null;
 
-  // Fetch servers once we have the episodes list (to get the token)
+  // Fetch servers once we have the episode id
   useEffect(() => {
-    if (!ep || episodes.length === 0) return;
-    const found = episodes.find((e) => e.id.includes(`ep=${ep}`));
-    if (!found) return;
-    getServers(found.id)
+    if (!routeId || !routeId.includes("___")) return;
+    getServers(routeId)
       .then((res) => {
         if (res && res.length > 0) setServers(res);
       })
       .catch(() => {});
-  }, [ep, episodes]);
+  }, [routeId]);
 
   const fetchStream = useCallback(
     async (server: string, type: string) => {
@@ -434,7 +436,7 @@ export default function WatchPage() {
             <div className="overflow-y-auto p-2" style={{ flex: 1 }}>
               <div className="grid grid-cols-5 gap-1">
                 {filteredEpisodes.map((epItem) => {
-                  const isCurrent = ep ? epItem.id.includes(`ep=${ep}`) : false;
+                  const isCurrent = epItem.id === routeId;
                   const isFiller = epItem.isFiller || epItem.filler;
                   return (
                     <Link
@@ -1024,9 +1026,7 @@ export default function WatchPage() {
                   <div className="section-title mb-3">Episodes</div>
                   <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-1.5">
                     {filteredEpisodes.map((epItem) => {
-                      const isCurrent = ep
-                        ? epItem.id.includes(`ep=${ep}`)
-                        : false;
+                      const isCurrent = epItem.id === routeId;
                       const isFiller = epItem.isFiller || epItem.filler;
                       return (
                         <Link

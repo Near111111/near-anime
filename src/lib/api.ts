@@ -1,375 +1,384 @@
 import axios from "axios";
 
-// Flask AnimeKAI API running on port 5000
-const FLASK_BASE = process.env.NEXT_PUBLIC_FLASK_URL || "http://localhost:5000";
+// AnimePahe API running on port 3000
+const ANIMEPAHE_BASE =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
-const flask = axios.create({
-  baseURL: FLASK_BASE,
-  timeout: 20000,
+const api = axios.create({
+  baseURL: ANIMEPAHE_BASE,
+  timeout: 30000,
 });
-
-// AnimeKAI backend returns numeric keys for server types
-// "1" = sub, "2" = dub, "3" = raw
-const SERVER_TYPE_MAP: Record<string, string> = {
-  "1": "sub",
-  "2": "dub",
-  "3": "raw",
-};
 
 // ─── Type helpers ─────────────────────────────────────────────────────────────
 
-interface KaiAnime {
-  slug: string;
+interface PaheAiringItem {
+  id: number;
+  anime_id: number;
   title: string;
-  japanese_title?: string;
-  poster: string;
-  type?: string;
-  year?: string;
-  rating?: string;
-  sub_episodes?: string;
-  dub_episodes?: string;
-  total_episodes?: string;
+  episode: number;
+  image: string;
+  session: string;
+  link: string;
+  fansub?: string;
+  created_at?: string;
 }
 
-interface KaiBannerItem {
+interface PaheSearchItem {
+  id: number;
   title: string;
-  japanese_title?: string;
-  description?: string;
+  status: string;
+  type: string;
+  episodes: number;
+  score: number;
+  year: number;
+  season: string;
   poster: string;
+  session: string;
+  link: string;
+}
+
+interface PaheAnimeInfo {
+  ids: {
+    animepahe_id: string;
+    mal_id?: string;
+    anilist_id?: string;
+    ann_id?: string;
+    kitsu?: string;
+  };
+  title: string;
+  image: string;
+  preview?: string;
+  synopsis: string;
+  synonym?: string;
+  japanese?: string;
+  type: string;
+  episodes: string;
+  status: string;
+  duration: string;
+  aired: string;
+  season: string;
+  studio?: string;
+  themes?: string[];
+  demographic?: string[];
+  genre?: string[];
+  relations?: Record<
+    string,
+    {
+      title: string;
+      session: string;
+      image: string;
+      type: string;
+      episodes: string;
+      status: string;
+      season: string;
+    }[]
+  >;
+  recommendations?: {
+    title: string;
+    url: string;
+    image: string;
+    type: string;
+    episodes: string;
+    status: string;
+    season: string;
+  }[];
+}
+
+interface PaheEpisode {
+  id: number;
+  anime_id: number;
+  episode: number;
+  snapshot: string;
+  session: string;
+  link: string;
+  filler?: boolean;
+  disc?: string;
+  audio?: string;
+  duration?: string;
+}
+
+interface PaheStreamSource {
   url: string;
-  sub_episodes?: string;
-  dub_episodes?: string;
-  type?: string;
-  rating?: string;
+  resolution: string;
+  isM3U8: boolean;
+  isDub: boolean;
+  fanSub: string;
 }
 
-interface KaiTrendingItem {
-  rank?: string;
-  title: string;
-  japanese_title?: string;
-  poster: string;
-  url: string;
-  sub_episodes?: string;
-  dub_episodes?: string;
-  type?: string;
+interface PaheStreamResponse {
+  ids: Record<string, string>;
+  session: string;
+  episode: string;
+  anime_title: string;
+  provider: string;
+  sources: PaheStreamSource[];
+  downloads: unknown[];
 }
 
-interface KaiEpisode {
-  number: string;
-  slug: string;
-  title: string;
-  japanese_title?: string;
-  token: string;
-  has_sub: boolean;
-  has_dub: boolean;
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// ─── Mappers ──────────────────────────────────────────────────────────────────
-
-function slugFromUrl(url: string): string {
-  // https://anikai.to/watch/bleach-re3j → bleach-re3j
-  return url.replace(/.*\/watch\//, "").replace(/\/$/, "");
-}
-
-function mapKaiAnime(item: KaiAnime) {
-  return {
-    id: item.slug,
-    title: item.title,
-    japanese_title: item.japanese_title || "",
-    poster: item.poster,
-    tvInfo: {
-      showType: item.type || "",
-      rating: item.rating || "",
-      sub: item.sub_episodes ? parseInt(item.sub_episodes) : undefined,
-      dub: item.dub_episodes ? parseInt(item.dub_episodes) : undefined,
-      eps: item.total_episodes ? parseInt(item.total_episodes) : undefined,
-    },
-  };
-}
-
-function mapBannerToSpotlight(item: KaiBannerItem, index: number) {
-  return {
-    id: slugFromUrl(item.url),
-    rank: index + 1,
-    title: item.title,
-    japanese_title: item.japanese_title || "",
-    poster: item.poster,
-    description: item.description || "",
-    tvInfo: {
-      showType: item.type || "",
-      rating: item.rating || "",
-      sub: item.sub_episodes ? parseInt(item.sub_episodes) : undefined,
-      dub: item.dub_episodes ? parseInt(item.dub_episodes) : undefined,
-    },
-  };
-}
-
-function mapTrending(item: KaiTrendingItem) {
-  return {
-    id: slugFromUrl(item.url),
-    title: item.title,
-    japanese_title: item.japanese_title || "",
-    poster: item.poster,
-    tvInfo: {
-      showType: item.type || "",
-      sub: item.sub_episodes ? parseInt(item.sub_episodes) : undefined,
-      dub: item.dub_episodes ? parseInt(item.dub_episodes) : undefined,
-    },
-  };
+function resolutionToNumber(res: string): number {
+  return parseInt(res.replace("p", "")) || 0;
 }
 
 // ─── API functions ────────────────────────────────────────────────────────────
 
 export async function getHome() {
-  const { data } = await flask.get("/api/home");
+  const { data } = await api.get("/api/airing");
+  const items: PaheAiringItem[] = data.data || [];
 
-  const banner: KaiBannerItem[] = data.banner || [];
-  const latest: KaiAnime[] = data.latest_updates || [];
-  const trending: {
-    NOW?: KaiTrendingItem[];
-    DAY?: KaiTrendingItem[];
-    WEEK?: KaiTrendingItem[];
-    MONTH?: KaiTrendingItem[];
-  } = data.top_trending || {};
+  const spotlights = items.slice(0, 5).map((item, index) => ({
+    id: item.session,
+    rank: index + 1,
+    title: item.title,
+    japanese_title: "",
+    poster: item.image,
+    description: `Episode ${item.episode} — Fansub: ${item.fansub || "N/A"}`,
+    tvInfo: {
+      showType: "TV",
+      rating: "",
+      sub: item.episode,
+      dub: undefined,
+    },
+  }));
+
+  const latestEpisode = items.map((item) => ({
+    id: item.session,
+    title: item.title,
+    japanese_title: "",
+    poster: item.image,
+    tvInfo: {
+      showType: "TV",
+      rating: "",
+      eps: item.episode,
+    },
+  }));
 
   return {
-    spotlights: banner.slice(0, 5).map(mapBannerToSpotlight),
-    trending: (trending.NOW || []).map(mapTrending),
-    topAiring: (trending.DAY || []).map(mapTrending),
-    mostPopular: (trending.WEEK || []).map(mapTrending),
-    mostFavorite: (trending.MONTH || []).map(mapTrending),
-    latestEpisode: latest.map(mapKaiAnime),
-    topUpcoming: [],
+    spotlights,
+    trending: latestEpisode.slice(0, 12),
+    topAiring: latestEpisode.slice(0, 12),
+    mostPopular: latestEpisode.slice(0, 12),
+    mostFavorite: latestEpisode.slice(0, 12),
+    latestEpisode,
     latestCompleted: [],
+    topUpcoming: [],
     top10: {
-      today: (trending.NOW || []).slice(0, 10).map(mapTrending),
-      week: (trending.WEEK || []).slice(0, 10).map(mapTrending),
-      month: (trending.MONTH || []).slice(0, 10).map(mapTrending),
+      today: latestEpisode.slice(0, 10),
+      week: latestEpisode.slice(0, 10),
+      month: latestEpisode.slice(0, 10),
     },
   };
 }
 
-export async function getAnimeInfo(slug: string) {
-  const { data } = await flask.get(`/api/anime/${slug}`);
+export async function getAnimeInfo(session: string) {
+  const { data }: { data: PaheAnimeInfo } = await api.get(`/api/${session}`);
 
   return {
     data: {
-      id: slug,
+      id: session,
       title: data.title || "",
-      japanese_title: data.japanese_title || "",
-      poster: data.poster || "",
+      japanese_title: data.japanese || "",
+      poster: data.image || "",
       showType: data.type || "",
-      description: data.description || "",
+      description: data.synopsis || "",
       animeInfo: {
-        Overview: data.description || "",
+        Overview: data.synopsis || "",
         tvInfo: {
           showType: data.type || "",
-          rating: data.rating || "",
-          sub: data.sub_episodes || "",
-          dub: data.dub_episodes || "",
+          rating: "",
+          sub: data.episodes || "",
+          dub: "",
         },
-        Aired: data.detail?.date_aired || "",
-        Status: data.detail?.status || "",
-        Studios: data.detail?.studios?.join(", ") || "",
-        Genres: data.detail?.genres || [],
-        "MAL score": data.mal_score || "",
+        Aired: data.aired || "",
+        Status: data.status || "",
+        Studios: data.studio || "",
+        Duration: data.duration || "",
+        Season: data.season || "",
+        Genres: data.genre || [],
+        "MAL score": "",
       },
-      recommended_data: [],
+      recommended_data: (data.recommendations || []).map((rec) => ({
+        id: rec.url.replace("/anime/", ""),
+        title: rec.title,
+        poster: rec.image,
+      })),
     },
-    seasons: (data.seasons || []).map(
-      (s: { url: string; title: string; poster: string; active: boolean }) => ({
-        id: slugFromUrl(s.url),
-        title: s.title,
-        season_poster: s.poster,
-        isCurrent: s.active,
-      }),
-    ),
+    seasons: [],
   };
 }
 
-export async function getEpisodes(slug: string) {
-  // Step 1: get ani_id from anime info
-  const { data: info } = await flask.get(`/api/anime/${slug}`);
-  const ani_id = info.ani_id;
-  if (!ani_id) return { episodes: [] };
+export async function getEpisodes(session: string) {
+  const allEpisodes: PaheEpisode[] = [];
+  let lastPage = 1;
 
-  // Step 2: get episodes using ani_id
-  const { data } = await flask.get(`/api/episodes/${ani_id}`);
-  const episodes: KaiEpisode[] = data.episodes || [];
+  // Fetch first page to get pagination info
+  const firstRes = await api.get(`/api/${session}/releases`, {
+    params: { sort: "episode_asc", page: 1 },
+  });
+  const firstData = firstRes.data;
+  lastPage = firstData.paginationInfo?.lastPage || 1;
+  allEpisodes.push(...(firstData.data || []));
+
+  // Fetch remaining pages (cap at 10 pages to avoid timeout)
+  const maxPages = Math.min(lastPage, 10);
+  const remainingPages = Array.from({ length: maxPages - 1 }, (_, i) => i + 2);
+
+  await Promise.all(
+    remainingPages.map(async (p) => {
+      try {
+        const { data } = await api.get(`/api/${session}/releases`, {
+          params: { sort: "episode_asc", page: p },
+        });
+        allEpisodes.push(...(data.data || []));
+      } catch {
+        // ignore failed pages
+      }
+    }),
+  );
+
+  // Sort by episode number
+  allEpisodes.sort((a, b) => a.episode - b.episode);
 
   return {
-    episodes: episodes.map((ep) => ({
-      // id format: slug/ani_id/token — used to reconstruct watch URL
-      id: `${slug}?ani_id=${ani_id}&ep=${ep.number}&token=${ep.token}`,
-      episode_no: parseInt(ep.number),
-      title: ep.title || `Episode ${ep.number}`,
-      isFiller: false,
+    episodes: allEpisodes.map((ep) => ({
+      // id format: animeSession___episodeSession
+      id: `${session}___${ep.session}`,
+      episode_no: ep.episode,
+      title: `Episode ${ep.episode}`,
+      isFiller: ep.filler || false,
     })),
-    totalEpisodes: episodes.length,
+    totalEpisodes: allEpisodes.length,
   };
 }
 
-export async function getServers(episodeParam: string) {
-  const [slug, queryString] = episodeParam.split("?");
-  const params = new URLSearchParams(queryString || "");
-  let token = params.get("token");
+export async function getServers(episodeId: string) {
+  const parts = episodeId.split("___");
+  if (parts.length < 2) return [];
+  const animeSession = parts[0];
 
-  if (!token) {
-    const ep = params.get("ep");
-    if (slug && ep) {
-      const epData = await getEpisodes(slug);
-      const found = epData.episodes.find((e) => e.episode_no === parseInt(ep));
-      if (found) {
-        const foundParams = new URLSearchParams(found.id.split("?")[1] || "");
-        token = foundParams.get("token");
-      }
-    }
-  }
-
-  if (!token) return [];
-
-  const { data } = await flask.get(`/api/servers/${token}`);
-  const servers = data.servers || {};
-  const result: {
-    type: string;
-    serverName: string;
-    data_id: string;
-    server_id: string;
-  }[] = [];
-
-  for (const [key, list] of Object.entries(servers)) {
-    const type = SERVER_TYPE_MAP[key] || key;
-    for (const s of list as {
-      name: string;
-      link_id: string;
-      server_id: string;
-    }[]) {
-      result.push({
-        type,
-        serverName: s.name,
-        data_id: s.link_id,
-        server_id: s.server_id,
-      });
-    }
-  }
-  return result;
+  return [
+    {
+      type: "sub",
+      serverName: "Kwik",
+      data_id: episodeId,
+      server_id: animeSession,
+    },
+  ];
 }
 
 export async function getStream(
   episodeId: string,
-  _server: string = "Server 1",
-  type: string = "sub",
+  _server: string = "kwik",
+  _type: string = "sub",
 ) {
-  const [slug, queryString] = episodeId.split("?");
-  const params = new URLSearchParams(queryString || "");
-  let token = params.get("token");
+  // episodeId can be:
+  //   "animeSession___episodeSession"           (initial load, pick best)
+  //   "animeSession___episodeSession|||index"   (user picked a quality)
+  const [baseId, indexStr] = episodeId.split("|||");
+  const pickedIndex = indexStr !== undefined ? parseInt(indexStr) : -1;
 
-  if (!token) {
-    const ep = params.get("ep");
-    if (slug && ep) {
-      const epData = await getEpisodes(slug);
-      const found = epData.episodes.find((e) => e.episode_no === parseInt(ep));
-      if (found) {
-        const foundParams = new URLSearchParams(found.id.split("?")[1] || "");
-        token = foundParams.get("token");
-      }
-    }
+  const parts = baseId.split("___");
+  if (parts.length < 2) return null;
+
+  const animeSession = parts[0];
+  const episodeSession = parts[1];
+
+  try {
+    const { data }: { data: PaheStreamResponse } = await api.get(
+      `/api/play/${animeSession}`,
+      {
+        params: { episodeId: episodeSession, downloads: false },
+      },
+    );
+
+    const sources: PaheStreamSource[] = data.sources || [];
+    if (!sources.length) return null;
+
+    // Sort highest quality first
+    const sorted = [...sources].sort(
+      (a, b) =>
+        resolutionToNumber(b.resolution) - resolutionToNumber(a.resolution),
+    );
+
+    // Use picked index if valid, otherwise best quality
+    const chosen =
+      pickedIndex >= 0 && pickedIndex < sorted.length
+        ? sorted[pickedIndex]
+        : sorted[0];
+
+    // Build server list — one entry per quality
+    const allServers = sorted.map((src, i) => ({
+      type: src.isDub ? "dub" : "sub",
+      serverName: `Kwik ${src.resolution}`,
+      data_id: `${baseId}|||${i}`,
+      server_id: animeSession,
+    }));
+
+    return {
+      streamingLink: {
+        link: chosen.url,
+        tracks: [],
+        intro: null,
+        outro: null,
+      },
+      servers: allServers,
+    };
+  } catch {
+    return null;
   }
-
-  if (!token) return null;
-
-  const { data: serverData } = await flask.get(`/api/servers/${token}`);
-  const servers = serverData.servers || {};
-
-  // Map numeric keys to type names: "1"=sub, "2"=dub, "3"=raw
-  const mappedServers: Record<string, { link_id: string; name: string }[]> = {};
-  for (const [key, list] of Object.entries(servers)) {
-    const typeName = SERVER_TYPE_MAP[key] || key;
-    mappedServers[typeName] = list as { link_id: string; name: string }[];
-  }
-
-  const typeServers: { link_id: string; name: string }[] =
-    mappedServers[type] || mappedServers["sub"] || [];
-
-  if (!typeServers.length) return null;
-
-  // Build full server list for the sidebar
-  const allServers: {
-    type: string;
-    serverName: string;
-    data_id: string;
-    server_id: string;
-  }[] = [];
-  for (const [t, list] of Object.entries(mappedServers)) {
-    for (const s of list as {
-      link_id: string;
-      name: string;
-      server_id?: string;
-    }[]) {
-      allServers.push({
-        type: t,
-        serverName: s.name,
-        data_id: s.link_id,
-        server_id: s.server_id || "",
-      });
-    }
-  }
-
-  for (const server of typeServers) {
-    try {
-      const { data } = await flask.get(`/api/source/${server.link_id}`);
-      const sources: { file: string }[] = data.sources || [];
-      const m3u8 = sources[0]?.file;
-      if (m3u8) {
-        return {
-          streamingLink: {
-            link: m3u8,
-            tracks: data.tracks || [],
-            intro: data.skip?.intro || null,
-            outro: data.skip?.outro || null,
-          },
-          servers: allServers,
-        };
-      }
-    } catch (_) {
-      continue;
-    }
-  }
-  return null;
 }
 
 export async function searchAnime(keyword: string, _page: number = 1) {
-  const { data } = await flask.get("/api/search", {
-    params: { keyword },
+  const { data } = await api.get("/api/search", {
+    params: { q: keyword },
   });
 
-  const results: KaiAnime[] = data.results || [];
+  const results: PaheSearchItem[] = data.data || [];
 
   return {
-    data: results.map(mapKaiAnime),
+    data: results.map((item) => ({
+      id: item.session,
+      title: item.title,
+      japanese_title: "",
+      poster: item.poster,
+      tvInfo: {
+        showType: item.type || "TV",
+        rating: item.score ? `${item.score}` : "",
+        sub: item.episodes || undefined,
+        dub: undefined,
+        eps: item.episodes || undefined,
+      },
+    })),
     totalPage: 1,
   };
 }
 
 export async function getTopTen() {
-  const { data } = await flask.get("/api/home");
-  const trending = data.top_trending || {};
+  const { data } = await api.get("/api/airing");
+  const items: PaheAiringItem[] = data.data || [];
+
+  const mapped = items.slice(0, 10).map((item) => ({
+    id: item.session,
+    title: item.title,
+    japanese_title: "",
+    poster: item.image,
+    tvInfo: { showType: "TV", eps: item.episode },
+  }));
 
   return {
-    today: (trending.NOW || []).slice(0, 10).map(mapTrending),
-    week: (trending.WEEK || []).slice(0, 10).map(mapTrending),
-    month: (trending.MONTH || []).slice(0, 10).map(mapTrending),
+    today: mapped,
+    week: mapped,
+    month: mapped,
   };
 }
 
 export async function getSchedule() {
-  // AnimeKAI doesn't have schedule — return empty
   return [];
 }
 
 export async function getRandom() {
-  // AnimeKAI doesn't have random — return null
   return null;
 }
 
-export default flask;
+export default api;
